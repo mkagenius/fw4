@@ -72,7 +72,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         name = data.get("name", "")
-        # Intentional bug: no length cap — fuzzer can find very large names
+        # Intentional issue: no length cap — fuzzer can find very large names
         if not name:
             self._send(422, json.dumps({"error": "name is required"}))
             return
@@ -114,7 +114,11 @@ class Handler(BaseHTTPRequestHandler):
         results = [
             it for it in _items.values()
             if query.lower() in it["name"].lower()
-            or any(query.lower() in t.lower() for t in it.get("tags", []))
+            or any(
+                query.lower() in t.lower()
+                for t in it.get("tags", [])
+                if isinstance(t, str)
+            )
         ]
         self._send(200, json.dumps(results))
 
@@ -131,7 +135,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         expr = str(data.get("expr", ""))
-        # Intentional unsafe eval to give the fuzzer something to find
+        # Intentionally unsafe eval — used here as a fuzzing target.
+        # Note: even with __builtins__={}, Python's object model can still
+        # be exploited (e.g. ().__class__.__bases__[0].__subclasses__()).
+        # This endpoint exists precisely so the fuzzer can discover that.
         try:
             result = eval(expr, {"__builtins__": {}})  # noqa: S307
             self._send(200, json.dumps({"result": result}))

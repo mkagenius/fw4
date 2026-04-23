@@ -119,8 +119,9 @@ def _fuzz_headers(provider: atheris.FuzzedDataProvider) -> dict:
     for _ in range(count):
         name = provider.ConsumeString(provider.ConsumeIntInRange(1, 24))
         value = provider.ConsumeString(provider.ConsumeIntInRange(0, 64))
-        # Skip headers that would break the requests library
-        if "\n" in name or "\r" in name or ":" in name:
+        # Skip headers whose names contain characters that break HTTP/1.1
+        # (newlines would inject extra header lines)
+        if "\n" in name or "\r" in name:
             continue
         headers[name] = value
     return headers
@@ -224,8 +225,8 @@ def TestOneInput(data: bytes) -> None:
             f"  response: {resp.text[:200]}",
             file=sys.stderr,
         )
-        # Raise to let Atheris record this input as a crash/finding
-        raise RuntimeError(
+        # Raise AssertionError so Atheris records this input as a crash/finding
+        raise AssertionError(
             f"Server returned {resp.status_code} for {method} {url}"
         )
 
